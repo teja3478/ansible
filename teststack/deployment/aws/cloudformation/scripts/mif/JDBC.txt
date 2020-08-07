@@ -1,0 +1,5 @@
+#Thu Feb 08 09:13:49 UTC 2018
+installDir=/data/mifinstall/webmethods
+action=Install fixes from image
+imageFile=/data/mifinstallfiles/MIF/webMethods9.12/FixPacks/JDBC_9.10_Fix2.zip
+selectedFixes=wMFix.jdbcAdapter_9.10.0.0002-0004

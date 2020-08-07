@@ -1,0 +1,279 @@
+{
+ "Description": "Stack containg all Load Balancers and Security Groups",
+ "AWSTemplateFormatVersion" : "2010-09-09",
+   "Mappings": {
+     "SSLCertificateRegionMap" : {
+      "us-east-1" : { "id" : "arn:aws:acm:us-east-1:897404225989:certificate/e6f28725-9e2a-4342-8e2e-6d34ffdb25b5" },
+      "us-west-2" : { "id" : "arn:aws:acm:us-west-2:897404225989:certificate/775d3486-b7c9-4217-b66f-19a20f873062" },
+      "us-west-1" : { "id" : "arn:aws:acm:us-west-1:897404225989:certificate/db8012cc-32f5-4c89-be92-acdcf1702b1f" },
+      "eu-west-1" : { "id" : "##us_west_1_cert_arn##" },
+      "ap-southeast-2" : { "id" : "##ap_southeast_2_cert_arn##" }
+     }
+ },
+ "Parameters": {
+   "CreatorName": {
+     "Type": "String",
+     "Description": "Your Name. All resources created by you can be searched using this",
+     "Default": "cpadmin"
+   },
+   "AWSRegion": {
+     "Description": "Region to Create ECS Instance. Must select a US region as of now",
+     "Type": "String",
+     "AllowedValues": ["us-west-2","us-west-1","us-east-1","eu-west-1","ap-southeast-2"]
+   },
+   "ParentStackName": {
+     "Description": "Name of the parent stack which will be using this VPC",
+     "Type": "String",
+     "Default": "localdev"
+   },
+   "VpcStack": {
+     "Description": "Name of the vpc stack which contains the VPC in which this stack will be created",
+     "Type": "String",
+     "Default": "localdev"
+   },
+    "StackSize": {
+      "Description": "The size of the stack. It will control resources that get created",
+      "Type": "String",
+      "AllowedValues": ["xsmall","small","medium","large"]
+    },
+    "StackVersion": {
+      "Description": "The version of the configuration repo used to create the stack",
+      "Type": "String"
+    },
+   "BaseDomain": {
+     "Description": "The base domain name for the stack.",
+     "Type": "String",
+     "Default": "manh-dev.com"
+   },
+   "OracleRDSStackName": {
+     "Description": "Name of MIF RDS Oracle DB Stack. You must have created it earlier. If not, exit and create it and come back.",
+     "Type": "String"
+   },
+   "CustomerCode": {
+     "Description": "The 4 digits customer code.",
+     "Type": "String",
+     "Default": "manh",
+      "MinLength" : "4",
+      "MaxLength" : "4",
+      "AllowedPattern" : "[a-z]*"
+   },
+   "CostCenter": {
+     "Description": "The 5 digits cost center code.",
+     "Type": "String",
+     "Default": "10210",
+     "MinLength" : "5",
+     "MaxLength" : "5",
+     "AllowedPattern" : "[0-9]*"
+   }
+ },
+
+ "Resources" : {
+    "OracleRDSSGIngress": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+         "GroupId": {"Fn::ImportValue": {"Fn::Sub": "${ParentStackName}-DB-OracleSecurityGroup"}},
+          "IpProtocol": "tcp", "FromPort": "1521", "ToPort": "1521", "SourceSecurityGroupId": {"Ref": "MifAppSecurityGroup"}
+            }
+    },
+    "RDSSGIngress": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+         "GroupId": {"Fn::ImportValue": {"Fn::Sub": "${ParentStackName}-DB-OracleSecurityGroup"}},
+          "IpProtocol": "tcp", "FromPort": "1521", "ToPort": "1521", "SourceSecurityGroupId": {"Ref": "JUMPBOXSecurityGroup"}
+          }
+      },
+    "MifAppSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Mif App Security Group",
+        "VpcId": {"Fn::ImportValue": {"Fn::Sub": "${VpcStack}-VPC-Vpcid"}},
+        "SecurityGroupIngress":[
+                      {"IpProtocol": "tcp","FromPort": "443", "ToPort": "443", "CidrIp": "0.0.0.0/0"},
+                      {"IpProtocol": "tcp","FromPort": "22", "ToPort": "22", "SourceSecurityGroupId":{"Ref": "JUMPBOXSecurityGroup"}},
+                      {"IpProtocol": "tcp","FromPort": "5555", "ToPort": "5555", "CidrIp": "0.0.0.0/0"}
+                                ],
+        "Tags": [
+           {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+           {"Key": "Name","Value": {"Fn::Join":["",[{"Ref": "ParentStackName"},"-sg-mif-app-instance"]]}},
+           {"Key": "Business Unit","Value": "RD"},
+           {"Key": "Stack Version","Value": {"Ref": "StackVersion"}},
+           {"Key": "Project Team","Value": "Omni"},
+           {"Key": "Customer Code", "Value": {"Ref": "CustomerCode"}},
+           {"Key": "Cost Center Tag", "Value": {"Ref": "CostCenter"}}
+        ]
+      }
+    },
+    "JUMPBOXSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "JUMPBOX Security Group",
+        "VpcId": {"Fn::ImportValue": {"Fn::Sub": "${VpcStack}-VPC-Vpcid"}},
+        "SecurityGroupIngress":[
+                        {"IpProtocol": "tcp","FromPort": "22", "ToPort": "22", "CidrIp": "0.0.0.0/0"},
+                        {"IpProtocol": "tcp","FromPort": "443", "ToPort": "443", "CidrIp": "0.0.0.0/0"}
+         ],
+        "Tags": [
+           {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+           {"Key": "Name","Value": {"Fn::Join":["",[{"Ref": "ParentStackName"},"-sg-jumpbox-instance"]]}},
+           {"Key": "Business Unit","Value": "RD"},
+           {"Key": "Stack Version","Value": {"Ref": "StackVersion"}},
+           {"Key": "Project Team","Value": "Omni"},
+           {"Key": "Customer Code", "Value": {"Ref": "CustomerCode"}},
+           {"Key": "Cost Center Tag", "Value": {"Ref": "CostCenter"}}
+        ]
+      }
+    },
+    "SFTPSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "SFTP Security Group",
+        "VpcId": {"Fn::ImportValue": {"Fn::Sub": "${VpcStack}-VPC-Vpcid"}},
+        "SecurityGroupIngress":[
+                      {"IpProtocol": "tcp","FromPort": "443", "ToPort": "443", "CidrIp": "0.0.0.0/0"},
+                      {"IpProtocol": "tcp","FromPort": "22", "ToPort": "22", "SourceSecurityGroupId":{"Ref": "JUMPBOXSecurityGroup"}}                 
+         ],
+        "Tags": [
+           {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+           {"Key": "Name","Value": {"Fn::Join":["",[{"Ref": "ParentStackName"},"-sg-sftp-instance"]]}},
+           {"Key": "Business Unit","Value": "RD"},
+           {"Key": "Stack Version","Value": {"Ref": "StackVersion"}},
+           {"Key": "Project Team","Value": "Omni"},
+           {"Key": "Customer Code", "Value": {"Ref": "CustomerCode"}},
+           {"Key": "Cost Center Tag", "Value": {"Ref": "CostCenter"}}
+        ]
+      }
+    },
+    "MifAppLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+       "SecurityGroups": [{"Ref": "MifAppSecurityGroup"}],
+       "Subnets": [
+         {"Fn::ImportValue": {"Fn::Sub": "${VpcStack}-VPC-PubSubnetAz1"}},
+         {"Fn::ImportValue": {"Fn::Sub": "${VpcStack}-VPC-PubSubnetAz2"}}
+       ],
+        "LBCookieStickinessPolicy" : [{
+          "PolicyName" : "MyLBPolicy",
+          "CookieExpirationPeriod" : "180"
+        } ],
+       "CrossZone": "true",
+       "Listeners": [
+         {"LoadBalancerPort": "443","InstancePort": "5555","Protocol":"HTTPS","InstanceProtocol" : "HTTP", "PolicyNames" : [ "MyLBPolicy" ], "SSLCertificateId":  { "Fn::FindInMap" : [ "SSLCertificateRegionMap", { "Ref" : "AWSRegion" }, "id"]} }
+       ],
+       "HealthCheck": {"Target": "TCP:5555","HealthyThreshold": "2","UnhealthyThreshold": "10","Interval": "30","Timeout": "5"},
+
+       "Tags": [
+         {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+         {"Key": "Name","Value": {"Fn::Join":["",[{"Ref": "ParentStackName"},"-ec2-mif-app"]]}},
+         {"Key": "Business Unit","Value": "RD"},
+         {"Key": "Stack Version","Value": {"Ref": "StackVersion"}},
+         {"Key": "Project Team","Value": "Omni"},
+         {"Key": "Customer Code", "Value": {"Ref": "CustomerCode"}},
+         {"Key": "Cost Center Tag", "Value": {"Ref": "CostCenter"}}
+       ]
+      }
+    },
+    "SFTPLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+       "SecurityGroups": [{"Ref": "SFTPSecurityGroup"}],
+       "SecurityGroups": [{"Ref": "JUMPBOXSecurityGroup"}],
+        "Subnets": [
+         {"Fn::ImportValue": {"Fn::Sub": "${VpcStack}-VPC-PubSubnetAz1"}},
+         {"Fn::ImportValue": {"Fn::Sub": "${VpcStack}-VPC-PubSubnetAz2"}}
+       ],
+        "LBCookieStickinessPolicy" : [{
+          "PolicyName" : "MyLBPolicy",
+          "CookieExpirationPeriod" : "180"
+        } ],
+       "CrossZone": "true",
+       "Listeners": [
+         {"LoadBalancerPort": "443","InstancePort": "22","Protocol":"HTTPS","InstanceProtocol" : "HTTP", "PolicyNames" : [ "MyLBPolicy" ], "SSLCertificateId":  { "Fn::FindInMap" : [ "SSLCertificateRegionMap", { "Ref" : "AWSRegion" }, "id"]} }
+
+       ],
+       "HealthCheck": {"Target": "TCP:22","HealthyThreshold": "2","UnhealthyThreshold": "10","Interval": "30","Timeout": "5"},
+
+       "Tags": [
+         {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+         {"Key": "Name","Value": {"Fn::Join":["",[{"Ref": "ParentStackName"},"-ec2-sftp"]]}},
+         {"Key": "Business Unit","Value": "RD"},
+         {"Key": "Stack Version","Value": {"Ref": "StackVersion"}},
+         {"Key": "Project Team","Value": "Omni"},
+         {"Key": "Customer Code", "Value": {"Ref": "CustomerCode"}},
+         {"Key": "Cost Center Tag", "Value": {"Ref": "CostCenter"}}
+       ]
+      }
+    },
+    "JUMPBOXLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+       "SecurityGroups": [{"Ref": "JUMPBOXSecurityGroup"}],
+       "Subnets": [
+         {"Fn::ImportValue": {"Fn::Sub": "${VpcStack}-VPC-PubSubnetAz1"}},
+         {"Fn::ImportValue": {"Fn::Sub": "${VpcStack}-VPC-PubSubnetAz2"}}
+       ],
+        "LBCookieStickinessPolicy" : [{
+          "PolicyName" : "MyLBPolicy",
+          "CookieExpirationPeriod" : "180"
+        } ],
+       "CrossZone": "true",
+       "Listeners": [
+         {"LoadBalancerPort": "443","InstancePort": "22","Protocol":"HTTPS","InstanceProtocol" : "HTTP", "PolicyNames" : [ "MyLBPolicy" ], "SSLCertificateId":  { "Fn::FindInMap" : [ "SSLCertificateRegionMap", { "Ref" : "AWSRegion" }, "id"]} }
+       ],
+       "HealthCheck": {"Target": "TCP:22","HealthyThreshold": "2","UnhealthyThreshold": "10","Interval": "30","Timeout": "5"},
+
+       "Tags": [
+         {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+         {"Key": "Name","Value": {"Fn::Join":["",[{"Ref": "ParentStackName"},"-ec2-jumpbox"]]}},
+         {"Key": "Business Unit","Value": "RD"},
+         {"Key": "Stack Version","Value": {"Ref": "StackVersion"}},
+         {"Key": "Project Team","Value": "Omni"},
+         {"Key": "Customer Code", "Value": {"Ref": "CustomerCode"}},
+         {"Key": "Cost Center Tag", "Value": {"Ref": "CostCenter"}}
+       ]
+      }
+    }
+},
+    "Outputs": {
+   "MifAppSecurityGroup": {
+     "Description": "Mif App Security Group",
+     "Value":  { "Ref": "MifAppSecurityGroup"},
+     "Export": { "Name" : {"Fn::Sub": "${ParentStackName}-VPC-MifAppSecurityGroup"}}
+   },
+   "JUMPBOXSecurityGroup": {
+     "Description": "JUMPBOX Security Group",
+     "Value":  { "Ref": "JUMPBOXSecurityGroup"},
+     "Export": { "Name" : {"Fn::Sub": "${ParentStackName}-VPC-JUMPBOXSecurityGroup"}}
+   },
+   "SFTPSecurityGroup": {
+     "Description": "SFTP Security Group",
+     "Value":  { "Ref": "SFTPSecurityGroup"},
+     "Export": { "Name" : {"Fn::Sub": "${ParentStackName}-VPC-SFTPSecurityGroup"}}
+   },
+  "MifAppLoadBalancer": {
+     "Description": "MIF internal facing Classic Load Balancer ",
+     "Value":  { "Ref": "MifAppLoadBalancer"},
+     "Export": { "Name" : {"Fn::Sub": "${ParentStackName}-VPC-MifAppLoadBalancer"}}
+   },
+   "SFTPLoadBalancer": {
+     "Description": "SFTP internal facing Classic Load Balancer ",
+     "Value":  { "Ref": "SFTPLoadBalancer"},
+     "Export": { "Name" : {"Fn::Sub": "${ParentStackName}-VPC-SFTPLoadBalancer"}}
+   },
+     "JUMPBOXLoadBalancer": {
+     "Description": "MIF internal facing Classic Load Balancer ",
+     "Value":  { "Ref": "JUMPBOXLoadBalancer"},
+     "Export": { "Name" : {"Fn::Sub": "${ParentStackName}-VPC-JUMPBOXLoadBalancer"}}
+   },
+   "MifAppLoadBalancerDNSName": {
+     "Description": "MIF internal facing Classic Load Balancer DNS Name",
+     "Value":   { "Fn::GetAtt": ["MifAppLoadBalancer","DNSName"]},
+     "Export" : { "Name" : {"Fn::Sub": "${ParentStackName}-VPC-MifAppLoadBalancerDNSName"}}
+   },
+   "MifAppLoadBalancerHostedZoneId": {
+     "Description": "MIF internal facing Classic Load Balancer hosted zone ID",
+     "Value":   { "Fn::GetAtt": ["MifAppLoadBalancer","CanonicalHostedZoneNameID"]},
+     "Export" : { "Name" : {"Fn::Sub": "${ParentStackName}-VPC-MifAppLoadBalancerHostedZoneId"}}
+   }
+ }
+}
+

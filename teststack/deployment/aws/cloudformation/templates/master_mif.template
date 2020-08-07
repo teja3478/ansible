@@ -1,0 +1,303 @@
+{
+    "AWSTemplateFormatVersion" : "2010-09-09",
+
+        "Description": "AWS cloudFormation template from MANH to create MIF Installation",
+
+        "Parameters": {
+
+    "CreatorName": {
+      "Type": "String",
+      "Description": "Your Name. All resources created by you can be searched using this",
+      "Default": "cpadmin"
+    },
+    "AWSRegion": {
+      "Description": "Region to Create ECS Instance. Must select a US region as of now",
+      "Type": "String",
+      "AllowedValues": ["us-west-2","us-west-1","us-east-1","eu-west-1","ap-southeast-2"]
+    },
+    "StackSize": {
+      "Description": "The size of the stack. It will control resources that get created",
+      "Type": "String",
+      "AllowedValues": ["xsmall","small","medium","large"]
+    },
+    "StackVersion": {
+      "Description": "The version of the configuration repo used to create the stack",
+      "Type": "String"
+    },
+    "KeyName": {
+      "Description": "Name of SSH key to link. You must have created it earlier. If not, exit and create it and come back.",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },
+    "SpotPriceNeeded": {
+      "Description": "You could save 90%+ of the cost by using spot pricing. Start delayed by about 3 minutes.",
+      "Type": "String",
+      "AllowedValues": ["Yes","No"]
+    },
+    "SpotPriceMaxBid": {
+      "Description": "Max Spot Price bid value",
+      "Type": "String",
+      "Default": "0.5"
+     },
+    "ParentStackName": {
+      "Description": "Name of the parent stack which will be using this VPC",
+      "Type": "String"
+    },
+    "SkipBlockDevice": {
+      "Description": "Pass as No when you are creating 10 GB extra disk to MIF APP",
+      "Type": "String",
+      "Default": "No"
+     },
+    "BaseDomain": {
+      "Description": "The base domain name for the stack.",
+      "Type": "String",
+      "Default": "matsg.info"
+    },
+   "DeleteEBSVolumeOnInstanceTermination": {
+      "Description": "Delete EBS Volume on EBS Termination",
+      "Type": "String",
+      "Default": "true"
+    },
+    "DBuserName": {
+      "Description": "RDS DB master user name. Must provide a user name",
+      "Type": "String"
+    },
+    "DBpassword": {
+      "Description": "RDS DB master password. Must provide a password",
+      "Type": "String",
+      "NoEcho": "true"
+    },
+    "DBPort": {
+      "Description": "RDS DB port",
+      "Type": "String",
+      "Default": "1521"
+    },
+    "BackupRetentionPeriodValue": {
+      "Type": "String",
+      "Description": "RDS DB Backup Retention Period",
+      "Default": "0"
+    },
+    "StorageValue": {
+      "Type": "String",
+      "Description": "Storage Value Allocation size in GB",
+      "Default": "100"
+    },
+    "MultiAZValue": {
+      "Type": "String",
+      "Description": "For Multi AZ Deployment, Pass true as value",
+      "Default": "false",
+      "AllowedValues": ["false", "true"]
+    },
+    "RDSAvailabilityZone": {
+       "Description": "Availability Zone to Create RDS Instance.",
+       "Type": "String"
+    },
+    "NoDesiredInstance": {
+      "Description": "Pass as Yes when you are creating secondary ASG/LC",
+      "Type": "String",
+      "Default": "No"
+    },
+    "CustomerCode": {
+      "Description": "The 4 digits customer code.",
+      "Type": "String",
+      "Default": "manh",
+      "MinLength" : "4",
+      "MaxLength" : "4",
+      "AllowedPattern" : "[a-z]*"
+    },
+    "CostCenter": {
+      "Description": "The 5 digits cost center code.",
+      "Type": "String",
+      "Default": "10210",
+      "MinLength" : "5",
+      "MaxLength" : "5",
+      "AllowedPattern" : "[0-9]*"
+    }
+        },
+    "Resources" : {
+        "VPCStack" : {
+               "Type" : "AWS::CloudFormation::Stack",
+               "Properties" : {
+                  "TemplateURL" : {"Fn::Join": ["",["http://manh-stack-",{"Ref": "ParentStackName"},".s3.amazonaws.com/deployment/aws/cloudformation/templates/vpc.template"]]},
+                          "Parameters" : {
+                            "CreatorName" : { "Ref" : "CreatorName" },
+                            "AWSRegion" : { "Ref" : "AWSRegion" },
+                            "VpcStack" : {"Fn::Join": ["",[{"Ref": "AWS::StackName"},"-vpc"]]},
+                            "StackSize" : { "Ref" : "StackSize" },
+                            "StackVersion" : { "Ref" : "StackVersion" },
+                            "KeyName" : { "Ref" : "KeyName" },
+                            "SpotPriceNeeded" : { "Ref" : "SpotPriceNeeded" },
+                            "SpotPriceMaxBid" : { "Ref" : "SpotPriceMaxBid" },
+                            "BaseDomain" : { "Ref" : "BaseDomain" },
+                            "CustomerCode" : { "Ref" : "CustomerCode" },
+                            "CostCenter" : { "Ref" : "CostCenter" }
+                           }
+               }
+                },
+        "DBStack" : {
+               "Type" : "AWS::CloudFormation::Stack",
+                   "DependsOn" : ["VPCStack"],
+               "Properties" : {
+                  "TemplateURL" : {"Fn::Join": ["",["http://manh-stack-",{"Ref": "ParentStackName"},".s3.amazonaws.com/deployment/aws/cloudformation/templates/mif_db.template"]]},
+                          "Parameters" : {
+                            "CreatorName" : { "Ref" : "CreatorName" },
+                            "AWSRegion" : { "Ref" : "AWSRegion" },
+                            "StackSize" : { "Ref" : "StackSize" },
+                            "StackVersion" : { "Ref" : "StackVersion" },
+                            "ParentStackName" : {"Ref": "AWS::StackName"},
+                            "DBuserName" : { "Ref" : "DBuserName" },
+                            "DBpassword" : { "Ref" : "DBpassword" },
+                            "DBPort" : { "Ref" : "DBPort" },
+                            "BackupRetentionPeriodValue" : { "Ref" : "BackupRetentionPeriodValue" },
+                            "StorageValue" : { "Ref" : "StorageValue" },
+                            "RDSAvailabilityZone" : { "Ref" : "RDSAvailabilityZone" },
+                            "MultiAZValue" : { "Ref" : "MultiAZValue" },
+                            "VpcStackName" : {"Fn::Join": ["",[{"Ref": "AWS::StackName"},"-vpc"]]},
+                            "CustomerCode" : { "Ref" : "CustomerCode" },
+                            "CostCenter" : { "Ref" : "CostCenter" }
+                           }
+                   }
+                },
+        "RolesStack" : {
+               "Type" : "AWS::CloudFormation::Stack",
+                   "DependsOn" : ["DBStack"],
+               "Properties" : {
+                  "TemplateURL" : {"Fn::Join": ["",["http://manh-stack-",{"Ref": "ParentStackName"},".s3.amazonaws.com/deployment/aws/cloudformation/templates/roles_mif.template"]]},
+                          "Parameters" : {
+                                "ParentStackName" : {"Ref": "AWS::StackName"}
+                           }
+                   }
+                },				
+        "SgLbStack" : {
+               "Type" : "AWS::CloudFormation::Stack",
+                   "DependsOn" : ["RolesStack"],
+               "Properties" : {
+                  "TemplateURL" : {"Fn::Join": ["",["http://manh-stack-",{"Ref": "ParentStackName"},".s3.amazonaws.com/deployment/aws/cloudformation/templates/sg_lb_mif.template"]]},
+                          "Parameters" : {
+                            "CreatorName" : { "Ref" : "CreatorName" },
+                            "AWSRegion" : { "Ref" : "AWSRegion" },
+                            "ParentStackName" : {"Ref": "AWS::StackName"},
+                            "VpcStack" : {"Fn::Join": ["",[{"Ref": "AWS::StackName"},"-vpc"]]},
+                            "StackSize" : { "Ref" : "StackSize" },
+                            "StackVersion" : { "Ref" : "StackVersion" },
+                            "BaseDomain" : { "Ref" : "BaseDomain" },
+                            "OracleRDSStackName" : {"Fn::Join": ["",[{"Ref": "AWS::StackName"},"-DB-OracleRDSStackName"]]},
+                            "CustomerCode" : { "Ref" : "CustomerCode" },
+                            "CostCenter" : { "Ref" : "CostCenter" }
+                           }
+                    }
+                },
+          "JumpboxStack" : {
+               "Type" : "AWS::CloudFormation::Stack",
+                        "DependsOn" : ["SgLbStack"],
+               "Properties" : {
+                   "TemplateURL" : {"Fn::Join": ["",["https://manh-stack-",{"Ref": "ParentStackName"},".s3.amazonaws.com/deployment/aws/cloudformation/templates/jumpbox.template"]]},
+                   "TimeoutInMinutes" : "15",
+               "Parameters" : {
+                  "AWSRegion" : { "Ref" : "AWSRegion" },
+                  "KeyName" : { "Ref" : "KeyName" },
+                  "StackSize" : { "Ref" : "StackSize" },
+                  "StackVersion" : { "Ref" : "StackVersion" },
+                  "CreatorName" : { "Ref" : "CreatorName" },
+                  "SpotPriceNeeded" : "No",
+                  "SpotPriceMaxBid" : { "Ref" : "SpotPriceMaxBid" },
+                  "ParentStackName": {"Ref": "AWS::StackName"},
+                  "BaseDomain" : { "Ref" : "BaseDomain" },
+                  "DBuserName" : { "Ref" : "DBuserName" },
+                  "DBpassword" : { "Ref" : "DBpassword" },
+                  "CustomerCode": {"Ref": "CustomerCode"},
+                  "CostCenter": {"Ref": "CostCenter"},
+                  "OracleRDSStackName" : {"Fn::Join": ["",[{"Ref": "AWS::StackName"},"-DB-OracleRDSStackName"]]},
+                  "VpcStack" : {"Fn::Join": ["",[{"Ref": "AWS::StackName"},"-vpc"]]}
+                  }
+          }
+    },
+
+        "MifEfsStack" : {
+               "Type" : "AWS::CloudFormation::Stack",
+                   "DependsOn" : ["SgLbStack"],
+               "Properties" : {
+                  "TemplateURL" : {"Fn::Join": ["",["http://manh-stack-",{"Ref": "ParentStackName"},".s3.amazonaws.com/deployment/aws/cloudformation/templates/mifefs.template"]]},
+                          "Parameters" : {
+                            "ParentStackName": {"Ref": "AWS::StackName"},
+                            "VpcStack" : {"Fn::Join": ["",[{"Ref": "AWS::StackName"},"-vpc"]]},
+                            "CustomerCode": {"Ref": "CustomerCode"},
+                            "CostCenter": {"Ref": "CostCenter"}
+                           }
+                    }
+                },
+        "SftpEfsStack" : {
+               "Type" : "AWS::CloudFormation::Stack",
+                   "DependsOn" : ["SgLbStack"],
+               "Properties" : {
+                  "TemplateURL" : {"Fn::Join": ["",["http://manh-stack-",{"Ref": "ParentStackName"},".s3.amazonaws.com/deployment/aws/cloudformation/templates/sftpefs.template"]]},
+                          "Parameters" : {
+                            "ParentStackName": {"Ref": "AWS::StackName"},
+                            "VpcStack" : {"Fn::Join": ["",[{"Ref": "AWS::StackName"},"-vpc"]]},
+                            "CustomerCode": {"Ref": "CustomerCode"},
+                            "CostCenter": {"Ref": "CostCenter"}
+                           }
+                    }
+                },
+        "MIFStack" : {
+             "Type" : "AWS::CloudFormation::Stack",
+                   "DependsOn" : ["MifEfsStack"],
+               "Properties" : {
+                  "TemplateURL" : {"Fn::Join": ["",["https://manh-stack-",{"Ref": "ParentStackName"},".s3.amazonaws.com/deployment/aws/cloudformation/templates/mif_asg.template"]]},
+                         "Parameters" : {
+                                "CreatorName" : { "Ref" : "CreatorName" },
+                                "AWSRegion" : { "Ref" : "AWSRegion" },
+                                "StackSize" : { "Ref" : "StackSize" },
+                                "StackVersion" : { "Ref" : "StackVersion" },
+                                "KeyName" : { "Ref" : "KeyName" },
+                                "ParentStackName" : {"Ref": "AWS::StackName"},
+                                "SkipBlockDevice" : {"Ref": "SkipBlockDevice"},
+                                "VpcStack" : {"Fn::Join": ["",[{"Ref": "AWS::StackName"},"-vpc"]]},
+                                "SpotPriceNeeded" : { "Ref" : "SpotPriceNeeded" },
+                                "SpotPriceMaxBid" : { "Ref" : "SpotPriceMaxBid" },
+                                "BaseDomain" : { "Ref" : "BaseDomain" },
+                                "CustomerCode" : { "Ref" : "CustomerCode" },
+                                "CostCenter" : { "Ref" : "CostCenter" },
+                                "DBuserName" : { "Ref" : "DBuserName" },
+                                "DBpassword" : { "Ref" : "DBpassword" },
+                                "DeleteEBSVolumeOnInstanceTermination" : { "Ref" : "DeleteEBSVolumeOnInstanceTermination" },
+                                "OracleRDSStackName" : {"Fn::Join": ["",[{"Ref": "AWS::StackName"},"-DB-OracleRDSStackName"]]},
+                                "NoDesiredInstance" : {"Ref": "NoDesiredInstance"}
+                           }
+                    }
+                },  
+        "SFTPStack" : {
+             "Type" : "AWS::CloudFormation::Stack",
+                   "DependsOn" : ["SftpEfsStack"],
+               "Properties" : {
+                  "TemplateURL" : {"Fn::Join": ["",["https://manh-stack-",{"Ref": "ParentStackName"},".s3.amazonaws.com/deployment/aws/cloudformation/templates/sftp.template"]]},
+                  "TimeoutInMinutes" : "15",
+                              "Parameters" : {                                                                                                                      
+                                "KeyName" : { "Ref" : "KeyName" },
+                                "ParentStackName": {"Ref": "AWS::StackName"},
+                                "StackSize" : { "Ref" : "StackSize" },
+                                "CreatorName" : { "Ref" : "CreatorName" },
+                                "NoDesiredInstance" : {"Ref": "NoDesiredInstance"},
+                                "SpotPriceNeeded" : { "Ref" : "SpotPriceNeeded" },
+                                "SpotPriceMaxBid" : { "Ref" : "SpotPriceMaxBid" },
+                                "AWSRegion" : { "Ref" : "AWSRegion" },
+                                "VpcStack" : {"Fn::Join": ["",[{"Ref": "AWS::StackName"},"-vpc"]]},
+                                "BaseDomain" : { "Ref" : "BaseDomain" },                         
+                                "CustomerCode": {"Ref": "CustomerCode"},
+                                "CostCenter": {"Ref": "CostCenter"},
+                                "StackVersion" : { "Ref" : "StackVersion" }                            
+                           }       
+                    }
+                },					
+        "DNSStack" : {
+               "Type" : "AWS::CloudFormation::Stack",
+                   "DependsOn" : ["MIFStack"],
+               "Properties" : {
+                  "TemplateURL" : {"Fn::Join": ["",["http://manh-stack-",{"Ref": "ParentStackName"},".s3.amazonaws.com/deployment/aws/cloudformation/templates/dns_mif.template"]]},
+                          "Parameters" : {
+                                "ParentStackName" : {"Ref": "AWS::StackName"},
+                                "HostedZone" : { "Ref" : "BaseDomain" }
+                           }
+                     }
+                }  
+          }
+    }

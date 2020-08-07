@@ -1,0 +1,261 @@
+{
+  "Description": "Defines all ASG and Launch Configurations for MIF",
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Mappings": {
+    "MIFApp": {
+       "us-east-1": {"AMI": "ami-1ecae776"},
+      "us-west-2": {"AMI": "ami-e7527ed7"},
+      "eu-west-1": {"AMI": "ami-a10897d6"},
+      "eu-central-1": {"AMI": "ami-a8221fb5"},
+      "us-west-1": {"AMI": "ami-bf5540df"},
+      "ap-southeast-2": {"AMI": "ami-fd9cecc7"},
+      "xsmall": {"instanceType": "r4.large", "isEbsOptimized": "True","desiredInstances": "1",
+        "minInstances":"1","maxInstances":"1"},
+      "small": {"instanceType": "r4.large", "isEbsOptimized": "True","desiredInstances": "1",
+        "minInstances":"1","maxInstances":"1"},
+      "medium": {"instanceType": "r4.large", "isEbsOptimized": "True","desiredInstances": "1",
+        "minInstances":"1","maxInstances":"1"},
+      "large": {"instanceType": "r4.large", "isEbsOptimized": "True","desiredInstances": "2",
+        "minInstances":"1","maxInstances":"2"},
+      "params": {"configSet": "MIF_APP","groupID":"MIF_APP","blockDevice":"No"}
+    }
+  },
+  "Parameters": {
+    "CreatorName": {
+      "Type": "String",
+      "Description": "Your Name. All resources created by you can be searched using this",
+      "Default": "cpadmin"
+    },
+    "AWSRegion": {
+      "Description": "Region to Create EC2 Instance. Must select a US region as of now",
+      "Type": "String",
+	  "Default": "us-east-1",
+      "AllowedValues": ["us-west-2","us-west-1","us-east-1","eu-west-1","eu-central-1","ap-southeast-2"]
+    },
+    "StackSize": {
+      "Description": "The size of the stack. It will control resources that get created",
+      "Type": "String",	  
+      "AllowedValues": ["xsmall","small","medium","large"]
+    },
+    "DBuserName": {
+      "Description": "RDS DB master user name. Must provide a user name",
+      "Type": "String"
+    },
+    "DBpassword": {
+      "Description": "RDS DB master password. Must provide a password",
+      "Type": "String",
+      "NoEcho": "true"
+    },
+    "StackVersion": {
+      "Description": "The version of the configuration repo used to create the stack",
+      "Type": "String"
+    },
+    "KeyName": {
+      "Description": "Name of SSH key to link. You must have created it earlier. If not, exit and create it and come back.",
+      "Type": "AWS::EC2::KeyPair::KeyName"	  
+    },
+    "ParentStackName": {
+      "Description": "Name of the parent stack which will be using this VPC",
+      "Type": "String"	  
+    },
+    "SkipBlockDevice": {
+      "Description": "Pass as No when you are creating 10 GB extra disk to MIF APP",
+      "Type": "String",
+      "Default": "No"
+     },
+    "VpcStack": {
+      "Description": "Name of the parent stack which will be using this VPC",
+      "Type": "String"	  
+    },
+    "SpotPriceNeeded": {
+      "Description": "You could save 90%+ of the cost by using spot pricing. Start delayed by about 3 minutes.",
+      "Type": "String",
+      "AllowedValues": ["Yes","No"],
+     "Default": "Yes"
+    },
+    "SpotPriceMaxBid": {
+      "Description": "Max Spot Price bid value",
+      "Type": "String",
+      "Default": "0.10"
+    },
+    "BaseDomain": {
+      "Description": "The base domain name for the stack.",
+      "Type": "String",
+      "Default": "manh-dev.com"
+    },
+    "CustomerCode": {
+      "Description": "The 4 digits customer code.",
+      "Type": "String",
+      "Default": "manh",
+      "MinLength" : "4",
+      "MaxLength" : "4",
+      "AllowedPattern" : "[a-z]*"
+    },
+    "CostCenter": {
+      "Description": "The 5 digits cost center code.",
+      "Type": "String",
+      "Default": "10210",
+      "MinLength" : "5",
+      "MaxLength" : "5",
+      "AllowedPattern" : "[0-9]*"
+    },
+    "DeleteEBSVolumeOnInstanceTermination": {
+      "Description": "Delete EBS Volume on EBS Termination",
+      "Type": "String",
+      "Default": "false"
+    },
+    "OracleRDSStackName": {
+      "Description": "Name of MIF RDS Oracle DB Stack. You must have created it earlier. If not, exit and create it and come back.",
+      "Type": "String"	  
+    },
+    "NoDesiredInstance": {
+      "Description": "Pass as Yes when you are creating secondary ASG/LC",
+      "Type": "String",
+      "Default": "No"
+    }
+  },
+  "Conditions": {
+    "Needs-Spot-Price" : { "Fn::Equals" : [{"Ref" : "SpotPriceNeeded"}, "Yes" ]},
+    "SkipBlockDevice" : { "Fn::Equals" : [{ "Ref" : "SkipBlockDevice"}, "Yes" ]},
+    "ZeroDesiredInstances" : { "Fn::Equals" : [{"Ref" : "NoDesiredInstance"}, "Yes" ]}
+  },
+  "Resources": {
+    "MIFAppServerLC": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Metadata": {
+        "AWS::CloudFormation::Authentication" : {
+          "S3AccessCreds" : {
+            "type" : "S3",
+            "roleName" : {"Fn::ImportValue" :{"Fn::Sub" : "${ParentStackName}-ROLE-EC2InstanceRole"}},
+            "buckets" : [ {"Fn::Join": ["",["manh-stack-",{"Ref": "ParentStackName"}]]} ]
+          }
+        },
+        "AWS::CloudFormation::Init": {
+          "configSets": {
+            "MIF_APP": ["Common", "CommonCommands"]
+          },
+          "Common": {
+            "packages": {
+                "yum": {"wget":[]}
+            },
+            "sources": {
+              "/etc/manh": {"Fn::Join": ["",["https://manh-stack-",{"Ref": "ParentStackName"},".s3.amazonaws.com/scripts.zip"]]},
+			  "/home/ec2-user": {"Fn::Join": ["",["https://manh-stack-",{"Ref": "ParentStackName"},".s3.amazonaws.com/MIFinstaller_2017.zip"]]}
+           },
+            "files": {
+              "/etc/manh/aws_environment.sh": {
+                "content": {
+                  "Fn::Join": ["",[
+                      "export AWS_REGION=",{"Ref": "AWS::Region"},"\n",
+                      "export PARENT_STACK=",{"Ref": "ParentStackName"},"\n",
+                      "export STACK_TYPE=","MIFApp","\n",
+                      "export STACK_SIZE=",{"Ref": "StackSize"},"\n",
+                      "export STACK_VERSION=",{"Ref": "StackVersion"},"\n",
+                      "export DATABASE_ORACLE_HOST=",{"Fn::ImportValue" :{"Fn::Sub": "${ParentStackName}-DB-OracleRDSHost" }},"\n",
+                      "export DATABASE_ORACLE_PORT=",{"Fn::ImportValue" :{"Fn::Sub": "${ParentStackName}-DB-OracleRDSPort" }},"\n",
+                      "export COST_CENTER=",{"Ref": "CostCenter"},"\n"
+                    ]
+                  ]
+                },
+                "mode": "000755","owner": "root","group": "root"
+              }
+            }
+          },
+          "CommonCommands": {
+            "commands": {
+              "01_make_files_executable": {"command": {"Fn::Join": ["",["chmod -R +755 /etc/manh/scripts /home/ec2-user/MIFinstaller_2017"]]}},
+              "02_add_ssh_keys": {"command": {"Fn::Join": ["",["cat /etc/manh/scripts/mif/authorized_keys.txt >> /home/ec2-user/.ssh/authorized_keys"]]}},	
+              "03_mount_efs": {"command": {"Fn::Join": ["",["/etc/manh/scripts/mif/mount_efs.sh MifEfsStack ec2-user"]]}},
+              "04_creating_MIF_DB_and_Schemas": {"command": {"Fn::Join": ["",["/etc/manh/scripts/mif/createschema.sh ", { "Ref" : "DBuserName" }, " ", { "Ref" : "DBpassword" }]]}},
+              "05_installing MIF": {"command": {"Fn::Join": ["",["/etc/manh/scripts/mif/installmif.sh"]]}}
+            }
+          }             
+        }        
+      },
+      "Properties": {
+        "ImageId": { "Fn::FindInMap": ["MIFApp",{"Ref": "AWSRegion"},"AMI"]},
+        "InstanceType": { "Fn::FindInMap": ["MIFApp",{"Ref": "StackSize"},"instanceType"]},
+        "IamInstanceProfile": {"Fn::ImportValue" : {"Fn::Sub": "${ParentStackName}-ROLE-EC2InstanceProfile" }},
+        "AssociatePublicIpAddress": true, 				
+        "KeyName": {"Ref": "KeyName"},
+        "BlockDeviceMappings" : [
+          { "Fn::If" : [ "SkipBlockDevice",{ "Ref" : "AWS::NoValue"},
+            {"DeviceName" : "/dev/sdd",
+               "Ebs" : {
+                 "VolumeSize" : "50",
+                 "DeleteOnTermination" : {"Ref": "DeleteEBSVolumeOnInstanceTermination"},
+                 "VolumeType" : "gp2"
+               }
+             }
+           ]}
+        ],		
+        "SecurityGroups": [ {"Fn::ImportValue" :{"Fn::Sub": "${ParentStackName}-VPC-MifAppSecurityGroup" }} ],
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+             "#!/bin/bash -xe\n",
+              "yum install -y aws-cfn-bootstrap\n",
+              "yum update -y\n",
+              "yum install -y amazon-efs-utils\n",
+                                    
+              "# installing oracle client \n",
+	      "wget https://github.com/bumpx/oracle-instantclient/raw/master/oracle-instantclient12.2-basic-12.2.0.1.0-1.x86_64.rpm\n",
+              "wget https://github.com/bumpx/oracle-instantclient/raw/master/oracle-instantclient12.2-sqlplus-12.2.0.1.0-1.x86_64.rpm\n",
+			 
+              "rpm -ivh oracle-instantclient12.2-basic-12.2.0.1.0-1.x86_64.rpm\n",
+	      "rpm -ivh oracle-instantclient12.2-sqlplus-12.2.0.1.0-1.x86_64.rpm\n",		
+             
+             "# Install the files and packages from the metadata\n",
+			
+             "/opt/aws/bin/cfn-init -v ",
+             "         --stack ", { "Ref" : "AWS::StackName" },
+             "         --resource MIFAppServerLC ",
+             "         --configsets MIF_APP ",
+             "         --region ", { "Ref" : "AWS::Region" }, "\n",
+             "# Signal the status from cfn-init\n",
+             "/opt/aws/bin/cfn-signal -e $? ",
+             "         --stack ",{"Ref": "AWS::StackName"},
+             "         --resource MIFAppInstanceAsg ",
+             "         --region ",{"Ref": "AWS::Region"},"\n",
+             "\n"			 
+ 
+		]]}}        
+      }
+       },
+	"MIFAppInstanceAsg": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "CreationPolicy" : {
+        "ResourceSignal" : {
+          "Timeout" : "PT25M",
+          "Count"   : 1 
+        }
+      },
+      "UpdatePolicy" : {
+        "AutoScalingRollingUpdate" : {
+          "MinInstancesInService" : "1"
+            }
+      },      
+      "Properties": {
+        "VPCZoneIdentifier": [{"Fn::ImportValue" :{"Fn::Sub": "${VpcStack}-VPC-PrivSubnetAz1" }},{"Fn::ImportValue" :{"Fn::Sub": "${VpcStack}-VPC-PrivSubnetAz2" }}],
+        "LaunchConfigurationName": { "Ref": "MIFAppServerLC" },    
+        "LoadBalancerNames": [ {"Fn::ImportValue" :{"Fn::Sub": "${ParentStackName}-VPC-MifAppLoadBalancer" }} ],
+        "MinSize": { "Fn::If" : [ "ZeroDesiredInstances", "0",{ "Fn::FindInMap": ["MIFApp",{"Ref": "StackSize"},"minInstances"]}]},
+        "MaxSize": { "Fn::FindInMap": ["MIFApp",{"Ref": "StackSize"},"maxInstances"]},
+        "DesiredCapacity": { "Fn::If" : [ "ZeroDesiredInstances", "0",
+              { "Fn::FindInMap": ["MIFApp",{"Ref": "StackSize"},"desiredInstances"]}
+         ]},       
+        "MetricsCollection" : [ { "Granularity" : "1Minute" } ],
+        "HealthCheckType" : "ELB",
+        "HealthCheckGracePeriod" : "1800",
+        "TerminationPolicies": ["OldestInstance", "OldestLaunchConfiguration", "Default"],         
+        "Tags": [
+          { "Key": "Name", "Value": {"Fn::Join": ["",[{"Ref": "ParentStackName"},"-","MIFApp","-Instance"]]},"PropagateAtLaunch": "true"},
+          { "Key": "Stack", "Value": {"Ref": "AWS::StackName"},"PropagateAtLaunch": "true"},         
+          { "Key": "Business Unit", "Value": "RD","PropagateAtLaunch": "true"},
+          { "Key": "Stack Version", "Value": {"Ref": "StackVersion"}, "PropagateAtLaunch": "true"},
+          { "Key": "Project Team", "Value": "Mif", "PropagateAtLaunch": "true"},
+          { "Key": "Customer Code", "Value": {"Ref": "CustomerCode"}, "PropagateAtLaunch": "true"},
+          { "Key": "Cost Center Tag", "Value": {"Ref": "CostCenter"}, "PropagateAtLaunch": "true"}
+        ]
+      }
+    }
+  }
+}

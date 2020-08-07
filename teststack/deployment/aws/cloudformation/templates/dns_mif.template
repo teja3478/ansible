@@ -1,0 +1,39 @@
+{
+  "Description": "Stack containg all DNS components",
+
+  "Parameters": {
+    "HostedZone": {
+      "Description": "Name of the hosted zone in Route53 within which record sets will be created. If you dont have one, create it and come back.",
+      "Type": "String",
+      "Default": "manh-dev.com"
+    },
+    "ParentStackName": {
+      "Description": "Name of the parent stack which will be using this VPC",
+      "Type": "String"
+    }    
+  },  
+  "Resources" : {
+    "MIFRecordSetGroup": {
+      "Type" : "AWS::Route53::RecordSetGroup",      
+      "Properties" : {
+        "HostedZoneName" : {"Fn::Join":["",[{"Ref": "HostedZone"},"."]]},
+        "RecordSets": [
+          {
+            "Name" : {"Fn::Join":["",[{"Ref": "ParentStackName"},"-mif.",{"Ref": "HostedZone"},"."]]},
+            "Type" : "A",
+            "AliasTarget" : {
+              "DNSName" : {"Fn::ImportValue" :{"Fn::Sub": "${ParentStackName}-VPC-MifAppLoadBalancerDNSName" }},
+              "HostedZoneId" : {"Fn::ImportValue" :{"Fn::Sub": "${ParentStackName}-VPC-MifAppLoadBalancerHostedZoneId"}}
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "DnsStackName": {
+      "Description" : "The name of the public stack",
+      "Value" : {"Ref": "AWS::StackName"}
+    }
+  }
+}

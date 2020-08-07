@@ -1,0 +1,203 @@
+{
+  "Description": "Stack containg RDS DB (Oracle)",
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Mappings": {
+    "StackSizeMap" : {
+      "xsmall": {
+        "rdsDBInstanceType": "db.t2.medium"
+      },
+      "small": {
+        "rdsDBInstanceType": "db.t2.medium"
+      },
+      "medium": {
+        "rdsDBInstanceType": "db.t2.medium"
+      },
+      "large": {
+        "rdsDBInstanceType": "db.t2.medium"
+      }
+    }
+  },
+  "Parameters": {
+    "CreatorName": {
+      "Type": "String",
+      "Description": "Your Name. All resources created by you can be searched using this",
+      "Default": "cpadmin"
+    },
+    "RDSAvailabilityZone": {
+      "Description": "Availability Zone to Create RDS Instance.",
+      "Type": "String"
+    },
+    "AWSRegion": {
+      "Description": "Region to Create ECS Instance. Must select a US region as of now",
+      "Type": "String",
+      "AllowedValues": ["us-west-2","us-west-1","us-east-1","eu-west-1","ap-southeast-2"]
+    },
+    "StackSize": {
+      "Description": "The size of the stack. It will control resources that get created",
+      "Type": "String",
+      "AllowedValues": ["xsmall","small","medium","large"]
+    },
+    "StackVersion": {
+      "Description": "The version of the configuration repo used to create the stack",
+      "Type": "String"
+    },
+    "ParentStackName": {
+      "Description": "Name of the parent stack which will be using this VPC",
+      "Type": "String"      
+    },	
+    "DBuserName": {
+      "Description": "RDS DB master user name. Must provide a user name",
+      "Type": "String"
+    },
+    "DBpassword": {
+      "Description": "RDS DB master password. Must provide a password",
+      "Type": "String",
+      "NoEcho": "true"
+    },
+    "DBPort": {
+      "Description": "RDS DB port",
+      "Type": "String",
+      "Default": "1521"
+    },
+    "BackupRetentionPeriodValue": {
+      "Type": "String",
+      "Description": "RDS DB Backup Retention Period",
+      "Default": "0"
+    },
+    "StorageValue": {
+      "Type": "String",
+      "Description": "Storage Value Allocation size in GB",
+      "Default": "100"
+    },
+    "MultiAZValue": {
+      "Type": "String",
+      "Description": "For Multi AZ Deployment, Pass true as value",
+      "Default": "false",
+      "AllowedValues": ["false", "true"]
+    },
+    "ReadReplicaFlag": {
+      "Description": "Create a read replica",
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": ["true", "false"],
+      "ConstraintDescription": "must be true or false."
+    },    
+    "VpcStackName": {
+      "Description": "Name of the parent stack which will be using this VPC",
+      "Type": "String"
+    },
+    "CustomerCode": {
+      "Description": "The 4 digits customer code.",
+      "Type": "String",
+      "Default": "manh",
+      "MinLength" : "4",
+      "MaxLength" : "4",
+      "AllowedPattern" : "[a-z]*"
+    },
+    "CostCenter": {
+      "Description": "The 5 digits cost center code.",
+      "Type": "String",
+      "Default": "10210",
+      "MinLength" : "5",
+      "MaxLength" : "5",
+      "AllowedPattern" : "[0-9]*"
+    }
+  },
+  "Conditions": {
+        "MultiAZValueChk": {"Fn::Equals": [{"Ref": "MultiAZValue"}, "true"]}
+  },
+  "Resources": {
+    "OracleRDSSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {"Fn::ImportValue": {"Fn::Sub": "${VpcStackName}-VPC-Vpcid"}},
+        "GroupDescription": "Oracle RDS Instance SecurityGroup",
+        "Tags": [
+            { "Key": "Creator", "Value": {"Ref": "CreatorName"}},
+            { "Key": "Business Unit", "Value": "RD"},
+            { "Key": "Stack Size", "Value": {"Ref": "StackSize"}},
+            { "Key": "Stack Version", "Value": {"Ref": "StackVersion"}},
+            { "Key": "Project Team", "Value": "Omni"},
+            { "Key": "Customer Code", "Value": {"Ref": "CustomerCode"}},
+            { "Key": "Cost Center Tag", "Value": {"Ref": "CostCenter"}},						
+            { "Key": "Name", "Value": {"Fn::Join": ["",[{"Ref": "ParentStackName"},"-sg-rds-oracle"]]}}
+          ]
+      }
+    },
+    "OracleRDSDBSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupDescription": "Subnets available for the Oracle RDS DB Instance",
+        "SubnetIds": [
+          { "Fn::ImportValue": {"Fn::Sub": "${VpcStackName}-VPC-PubSubnetAz1"}},
+          { "Fn::ImportValue": {"Fn::Sub": "${VpcStackName}-VPC-PubSubnetAz2"}}
+        ]
+      }
+    },
+    "OracleDBParameterGroup": {
+      "Type": "AWS::RDS::DBParameterGroup",
+      "Properties": {
+        "Description": "Oracle Database Parameter Group",
+        "Family": "oracle-se-11.2",
+        "Parameters": {}
+      }
+    },
+    "RDSOracleDB": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBName": "orcl",
+        "AllocatedStorage": {"Ref": "StorageValue" },
+        "AvailabilityZone": {"Fn::If": ["MultiAZValueChk", {"Ref": "AWS::NoValue"}, {"Ref": "RDSAvailabilityZone"}]},
+        "BackupRetentionPeriod": {"Ref": "BackupRetentionPeriodValue"},
+        "MultiAZ": {"Ref": "MultiAZValue"},
+        "DBInstanceIdentifier": {"Ref": "AWS::StackName"},
+        "DBInstanceClass": {"Fn::FindInMap": ["StackSizeMap", {"Ref": "StackSize"}, "rdsDBInstanceType"]},
+        "Engine": "oracle-se",
+        "StorageType": "gp2",
+        "EngineVersion": "11.2.0.4.v10",
+        "DBParameterGroupName": {"Ref": "OracleDBParameterGroup"},
+        "AutoMinorVersionUpgrade": "false",
+        "LicenseModel": "bring-your-own-license",
+        "MasterUsername": {"Ref": "DBuserName"},
+        "MasterUserPassword": {"Ref": "DBpassword"},
+        "Port": {"Ref": "DBPort"},
+        "PubliclyAccessible": "false",
+        "Tags": [
+          { "Key": "Name", "Value": {"Fn::Join": ["",[{"Ref": "AWS::StackName"},"-RDS-Oracle"]]}},
+          { "Key": "Stack", "Value": {"Ref": "AWS::StackName"}},
+          { "Key": "Customer Code", "Value": {"Ref": "CustomerCode"}},
+          { "Key": "Cost Center Tag", "Value": {"Ref": "CostCenter"}},
+          { "Key": "Stack Size", "Value": {"Ref": "StackSize"}},
+          { "Key": "Stack Version", "Value": {"Ref": "StackVersion"}}
+        ],
+        "VPCSecurityGroups": [{
+          "Ref": "OracleRDSSecurityGroup"
+        }],
+        "DBSubnetGroupName": {"Ref": "OracleRDSDBSubnetGroup"}
+      },
+      "DeletionPolicy": "Snapshot"
+    }    
+  },
+  "Outputs": {
+    "OracleRDSStackName": {
+        "Description": "The name of the Oracle RDS stack",
+        "Value": {"Ref": "AWS::StackName"},        
+		"Export" : { "Name" : {"Fn::Sub": "${ParentStackName}-DB-OracleRDSStackName" }}
+    },
+    "OracleRDSHost": {
+        "Description": "Host Name of Oracle RDS DB",
+        "Value": {"Fn::GetAtt": ["RDSOracleDB", "Endpoint.Address"]},        
+		"Export" : { "Name" : {"Fn::Sub": "${ParentStackName}-DB-OracleRDSHost" }}
+    },
+    "OracleRDSPort": {
+        "Description": "Port of Oracle RDS DB",
+        "Value": {"Fn::GetAtt": ["RDSOracleDB", "Endpoint.Port"]},        
+		"Export" : { "Name" : {"Fn::Sub": "${ParentStackName}-DB-OracleRDSPort" }}
+    },
+    "OracleSecurityGroup": {
+      "Description": "The security group associated with MySQL RDS",
+      "Value": {"Ref": "OracleRDSSecurityGroup"},      
+	  "Export" : { "Name" : {"Fn::Sub": "${ParentStackName}-DB-OracleSecurityGroup" }}
+    }
+  }
+}

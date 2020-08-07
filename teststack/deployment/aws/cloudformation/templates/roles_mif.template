@@ -1,0 +1,274 @@
+{
+  "Description": "Stack containing all common roles",
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Parameters": {
+    "ParentStackName": {
+      "Description": "Name of the parent stack which will be using this VPC",
+      "Type": "String"      
+    }    	    
+  },
+  "Resources": { 
+	"EC2ApplicationLoadBalancerRole": {
+        "Type": "AWS::IAM::Role",
+        "Properties": {
+          "AssumeRolePolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": [
+                    "ec2.amazonaws.com"
+                  ]
+                },
+                "Action": [
+                  "sts:AssumeRole"
+                ]
+              }
+            ]
+          },
+          "Path": "/",
+          "Policies": [
+            {
+              "PolicyName": {
+                "Fn::Sub": "${ParentStackName}-ec2-alb-policy"
+              },
+              "PolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": [
+                            "ec2:AuthorizeSecurityGroupIngress",
+                            "ec2:Describe*",
+                            "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+                            "elasticloadbalancing:DeregisterTargets",
+                            "elasticloadbalancing:Describe*",
+                            "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+                            "elasticloadbalancing:RegisterTargets"
+                        ],
+                        "Resource": "*"
+                    }
+                ]
+              }
+            }
+          ]
+        }
+    },
+    "EC2InstanceRole": {
+        "Type": "AWS::IAM::Role",
+        "Properties": {
+            "AssumeRolePolicyDocument": {"Version": "2012-10-17",
+                "Statement": [{"Effect": "Allow","Principal": {"Service": ["ec2.amazonaws.com"]},"Action": ["sts:AssumeRole"]}]
+            },
+            "Path": "/",
+            "Policies": [
+              {
+                "PolicyName": {
+                  "Fn::Sub": "${ParentStackName}-instance-policy"
+                },
+                "PolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "ec2:List*",
+                        "ec2:Submit*",
+                        "ec2:Describe*",
+                        "ec2:CreateCluster",
+                        "ec2:CreateService",
+                        "ec2:RegisterTaskDefinition",
+                        "ec2:DeregisterTaskDefinition",
+                        "ec2:RegisterContainerInstance",
+                        "ec2:DeregisterContainerInstance",
+                        "ec2:DiscoverPollEndpoint",
+                        "ec2:Poll",
+                        "ec2:StartTelemetrySession",
+                        "ec2:StopTask",
+                        "ec2:UpdateService",
+                        "ec2:DeleteService",
+                        "ec2:RunTask"
+                      ],
+                      "Resource": "*"
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "ssm:DescribeAssociation",
+                        "ssm:GetDocument",
+                        "ssm:ListAssociations",
+                        "ssm:UpdateAssociationStatus",
+                        "ssm:UpdateInstanceInformation"
+                      ],
+                      "Resource": "*"
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "ec2messages:AcknowledgeMessage",
+                        "ec2messages:DeleteMessage",
+                        "ec2messages:FailMessage",
+                        "ec2messages:GetEndpoint",
+                        "ec2messages:GetMessages",
+                        "ec2messages:SendReply"
+                      ],
+                      "Resource": "*"
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "ds:CreateComputer",
+                        "ds:DescribeDirectories"
+                      ],
+                      "Resource": "*"
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "logs:CreateLogGroup",
+                        "logs:CreateLogStream",
+                        "logs:DescribeLogGroups",
+                        "logs:DescribeLogStreams",
+                        "logs:PutLogEvents",
+                        "logs:GetLogEvents",
+                        "logs:PutRetentionPolicy",
+                        "logs:PutMetricFilter"
+                      ],
+                      "Resource": { "Fn::Join": [":", ["arn:aws:logs", {"Ref": "AWS::Region"}, {"Ref": "AWS::AccountId"}, "*"]]}
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "cloudwatch:DescribeAlarms",
+                        "cloudwatch:DeleteAlarms",
+                        "cloudwatch:PutMetricData"
+                      ],
+                      "Resource": "*"
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [ "autoscaling:*" ],
+                      "Resource": "*"
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [ "cloudformation:Describe*" ],
+                      "Resource": { "Fn::Join": [":", ["arn:aws:cloudformation", {"Ref": "AWS::Region"}, {"Ref": "AWS::AccountId"}, "*"]]}
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [ "rds:DescribeDBInstances" ],
+                      "Resource": {"Fn::Join": [":", ["arn:aws:rds", {"Ref": "AWS::Region"}, {"Ref": "AWS::AccountId"}, "*"]]}
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [ "elasticloadbalancing:DescribeLoadBalancers",
+                                  "elasticloadbalancing:DescribeTargetGroups",
+                                  "elasticloadbalancing:DescribeTargetHealth",
+                                  "elasticloadbalancing:DescribeTags",
+                                  "elasticloadbalancing:ModifyTargetGroup"
+                      ],
+                      "Resource": "*"
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "ec2:DescribeInstances",
+                        "ec2:DescribeInstanceStatus",
+                        "ec2:DescribeAddresses",
+                        "ec2:DescribeVolumes",
+                        "ec2:AttachVolume",
+                        "ec2:CreateTags"
+                      ],
+                      "Resource": "*"
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "s3:PutObject",
+                        "s3:GetObject",
+                        "s3:AbortMultipartUpload",
+                        "s3:ListMultipartUploadParts",
+                        "s3:ListBucketMultipartUploads"
+                      ],
+                      "Resource": {"Fn::Join": ["", ["arn:aws:s3:::", "manh-stack-", {"Ref": "ParentStackName"}, "/*"]]}
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "s3:DeleteObject",
+                        "s3:PutObject",
+                        "s3:GetObject",
+                        "s3:GetBucketLocation",
+                        "s3:AbortMultipartUpload",
+                        "s3:ListBucket",
+                        "s3:ListBucketVersions",
+                        "s3:ListMultipartUploadParts",
+                        "s3:ListBucketMultipartUploads"
+                      ],
+                      "Resource": [
+                        {"Fn::Join": ["", ["arn:aws:s3:::", "manh-stack-", {"Ref": "ParentStackName"}, "-backup"]]},
+                        {"Fn::Join": ["", ["arn:aws:s3:::", "manh-stack-", {"Ref": "ParentStackName"}, "-backup/*"]]}
+                      ]
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                          "iam:GetRole",
+                          "iam:PassRole"
+                      ],
+                      "Resource": {"Fn::GetAtt": ["EC2ApplicationLoadBalancerRole", "Arn"]}
+                    },
+                    {
+                      "Effect" : "Allow",
+                      "Action" : [
+                        "sqs:CreateQueue",
+                        "sqs:ReceiveMessage",
+                        "sqs:SendMessage",
+                        "sqs:ListQueues",
+                        "sqs:GetQueueAttributes",
+                        "sqs:GetQueueUrl",
+                        "sqs:DeleteMessage"
+                      ],
+                      "Resource" : [
+                        { "Fn::Join": [":", ["arn:aws:sqs", {"Ref": "AWS::Region"}, {"Ref": "AWS::AccountId"}, {"Fn::Join": ["", ["*"]]} ]]}
+                      ]
+                    }
+                  ]
+                }
+              }
+          ]
+      }
+    },
+    "EC2InstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+          "Path": "/",
+          "Roles": [{"Ref": "EC2InstanceRole"}]
+      }
+    }	
+   }, 
+  "Outputs": {
+    "RoleStackName": {
+      "Description" : "The name of the role stack",
+      "Value" : {"Ref": "AWS::StackName"},
+      "Export" : { "Name" : {"Fn::Sub": "${ParentStackName}-ROLE-RoleStackName" }}
+    },
+    "EC2AppLoadBalancerRole": {
+      "Description": "EC2 Application Load Balancer role",
+      "Value" : {"Ref": "EC2ApplicationLoadBalancerRole"},
+      "Export" : { "Name" : {"Fn::Sub": "${ParentStackName}-ROLE-EC2ApplicationLoadBalancerRole" }}
+    },
+    "EC2InstanceRole": {
+      "Description": "EC2 Instance role",
+      "Value" : {"Ref": "EC2InstanceRole"},
+      "Export" : { "Name" : {"Fn::Sub": "${ParentStackName}-ROLE-EC2InstanceRole" }}
+    },
+    "EC2InstanceProfile": {
+      "Description": "EC2 Instance profile",
+      "Value" : {"Ref": "EC2InstanceProfile"},
+      "Export" : { "Name" : {"Fn::Sub": "${ParentStackName}-ROLE-EC2InstanceProfile" }}
+    }		
+  }  
+}
